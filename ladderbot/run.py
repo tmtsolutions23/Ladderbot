@@ -219,12 +219,21 @@ def main():
         return
 
     if args.web:
+        import uvicorn
+        from ladderbot.web.app import create_app
+
+        # Load config for the web app
+        try:
+            from ladderbot.config import load_config
+            config = load_config(args.config) if args.config else load_config()
+        except FileNotFoundError:
+            from ladderbot.config import DEFAULT_CONFIG
+            config = DEFAULT_CONFIG
+
+        app = create_app(config)
         print(f"Starting LadderBot web dashboard on port {args.port}...")
         print(f"Open http://localhost:{args.port} in your browser")
-        # Web server launch would go here
-        # import uvicorn
-        # from ladderbot.web.app import app
-        # uvicorn.run(app, host="0.0.0.0", port=args.port)
+        uvicorn.run(app, host="0.0.0.0", port=args.port)
         return
 
     if args.picks or args.dashboard or args.backtest:
