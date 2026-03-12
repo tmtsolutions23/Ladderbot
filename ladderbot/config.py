@@ -31,8 +31,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "max_legs": 2,
         "target_odds_min": 150,
         "target_odds_max": 300,
-        "min_edge_per_leg": 0.02,
-        "min_edge_cold_start": 0.03,
+        "min_edge_per_leg": 0.008,
+        "min_edge_cold_start": 0.01,
     },
     "model": {
         "rolling_window": 20,
@@ -69,6 +69,18 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
+def _apply_env_overrides(config: dict) -> None:
+    """Apply environment variable overrides to config (for Railway / cloud deploys)."""
+    if os.environ.get("ODDS_API_KEY"):
+        config["odds_api_key"] = os.environ["ODDS_API_KEY"]
+    if os.environ.get("DISCORD_WEBHOOK_URL"):
+        config["discord_webhook_url"] = os.environ["DISCORD_WEBHOOK_URL"]
+    if os.environ.get("MIN_EDGE_PER_LEG"):
+        config["parlay"]["min_edge_per_leg"] = float(os.environ["MIN_EDGE_PER_LEG"])
+    if os.environ.get("MIN_EDGE_COLD_START"):
+        config["parlay"]["min_edge_cold_start"] = float(os.environ["MIN_EDGE_COLD_START"])
+
+
 def load_config(config_path: str | None = None) -> dict[str, Any]:
     """Load config from YAML file and merge with defaults.
 
@@ -92,6 +104,7 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
             config["odds_api_key"] = os.environ["ODDS_API_KEY"]
             if os.environ.get("DISCORD_WEBHOOK_URL"):
                 config["discord_webhook_url"] = os.environ["DISCORD_WEBHOOK_URL"]
+            _apply_env_overrides(config)
             return config
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
@@ -99,13 +112,7 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
         user_config = yaml.safe_load(f) or {}
 
     config = _deep_merge(DEFAULT_CONFIG, user_config)
-
-    # Environment variables override file values (for Railway / cloud deploys)
-    if os.environ.get("ODDS_API_KEY"):
-        config["odds_api_key"] = os.environ["ODDS_API_KEY"]
-    if os.environ.get("DISCORD_WEBHOOK_URL"):
-        config["discord_webhook_url"] = os.environ["DISCORD_WEBHOOK_URL"]
-
+    _apply_env_overrides(config)
     return config
 
 
