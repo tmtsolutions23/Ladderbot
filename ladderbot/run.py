@@ -237,10 +237,27 @@ def run_pipeline(
     # --- Step 3: Optimize parlays ---
     parlays = find_best_parlays(ev_bets, config)
 
-    # --- Step 4: Store picks and parlays in DB ---
+    # --- Step 4: Store picks and parlays in DB (skip duplicates) ---
+    today = datetime.now().strftime("%Y-%m-%d")
+    existing = db.execute(
+        """SELECT p.combined_odds, pk1.game_id as g1, pk2.game_id as g2
+           FROM parlays p
+           LEFT JOIN picks pk1 ON p.leg1_pick_id = pk1.pick_id
+           LEFT JOIN picks pk2 ON p.leg2_pick_id = pk2.pick_id
+           WHERE date(p.created_at) = ?""",
+        (today,),
+    ).fetchall()
+    existing_keys = {(r["g1"], r["g2"], r["combined_odds"]) for r in existing}
+
     for parlay in parlays:
         leg1 = parlay["leg1"]
         leg2 = parlay["leg2"]
+
+        # Skip if same game pair + odds already stored today
+        key = (leg1["game_id"], leg2["game_id"], parlay["parlay_american"])
+        if key in existing_keys:
+            logger.debug("Skipping duplicate parlay: %s", key)
+            continue
 
         pick1_id = insert_pick(
             db, leg1["game_id"], leg1.get("market", "h2h"),
