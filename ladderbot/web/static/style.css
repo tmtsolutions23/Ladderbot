@@ -1,0 +1,143 @@
+/* LadderBot Dashboard — Custom Styles */
+
+/* Custom color not in Tailwind */
+.bg-gray-750 {
+    background-color: #2d3748;
+}
+
+/* Card hover transitions */
+.card {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+}
+.card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Placed card — green border */
+.card-placed {
+    border-color: #10b981 !important;
+}
+.card-placed::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(16, 185, 129, 0.03);
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+/* Skipped card — gray border */
+.card-skipped {
+    border-color: #6b7280 !important;
+    opacity: 0.7;
+}
+
+/* Remove number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* Odds input styling */
+.odds-input {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.odds-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+}
+
+/* Verdict badges */
+.verdict-positive {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+}
+.verdict-negative {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* Ladder visualization */
+.ladder-step {
+    position: relative;
+}
+.ladder-step::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #4b5563;
+}
+.ladder-step:last-child::before {
+    display: none;
+}
+.ladder-node {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+}
+
+/* Tab active state */
+.tab-active {
+    border-bottom-color: #6366f1 !important;
+    color: #e5e7eb !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #1a202c;
+}
+::-webkit-scrollbar-thumb {
+    background: #4a5568;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #718096;
+}
+
+/* Pulse animation for active ladder step */
+@keyframes pulse-green {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+.pulse-active {
+    animation: pulse-green 2s infinite;
+}
+
+/* Table row hover */
+.bet-row:hover {
+    background-color: rgba(99, 102, 241, 0.05);
+}
+
+/* Loading spinner */
+.spinner {
+    border: 2px solid #4a5568;
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
