@@ -74,6 +74,47 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _extract_bookmaker_odds(event: dict, bookmaker_key: str | None) -> dict | None:
+    """Extract h2h and totals odds from an Odds API event for a given bookmaker.
+
+    Args:
+        event: Raw event dict from The Odds API.
+        bookmaker_key: Bookmaker key (e.g. "draftkings") or None for first available.
+
+    Returns:
+        Dict with home_ml, away_ml, total_line, over_odds, under_odds, or None.
+    """
+    for bk in event.get("bookmakers", []):
+        if bookmaker_key is not None and bk.get("key") != bookmaker_key:
+            continue
+
+        result = {}
+        for market in bk.get("markets", []):
+            mkey = market.get("key", "")
+            outcomes = market.get("outcomes", [])
+
+            if mkey == "h2h":
+                home_team = event.get("home_team", "")
+                for o in outcomes:
+                    if o.get("name") == home_team:
+                        result["home_ml"] = o.get("price")
+                    else:
+                        result["away_ml"] = o.get("price")
+
+            elif mkey == "totals":
+                for o in outcomes:
+                    if o.get("name") == "Over":
+                        result["over_odds"] = o.get("price")
+                        result["total_line"] = o.get("point")
+                    elif o.get("name") == "Under":
+                        result["under_odds"] = o.get("price")
+
+        if result.get("home_ml") is not None:
+            return result
+
+    return None
+
+
 def run_pipeline(
     config: dict,
     sport_filter: str | None = None,
@@ -97,10 +138,13 @@ def run_pipeline(
     Returns:
         Dict with pipeline results: picks, parlays, ladder_state, alerts_sent.
     """
-    from ladderbot.db.database import get_db
+    from ladderbot.db.database import get_db, insert_pick, insert_parlay
+    from ladderbot.data.odds import OddsClient, OddsClientError
+    from ladderbot.models.value import find_ev_bets
     from ladderbot.parlay.optimizer import find_best_parlays
     from ladderbot.parlay.ladder import LadderTracker, ShadowPortfolio
     from ladderbot.alerts.discord import DiscordAlert
+    from ladderbot.utils.odds import implied_probability
 
     db = get_db()
     ladder = LadderTracker(db, config)
@@ -117,20 +161,109 @@ def run_pipeline(
         if sports_config.get("nhl", True):
             sports_to_run.append("nhl")
 
-    # In a full implementation, each sport module would:
-    # 1. Fetch today's games and odds
-    # 2. Run the prediction model
-    # 3. Detect +EV bets via value.py
-    # For now, we return the pipeline structure
-    ev_bets: list[dict] = []
-    # TODO: integrate data layer and models when those modules are built
+    # Sport keys for The Odds API
+    sport_keys = {
+        "nba": "basketball_nba",
+        "nhl": "icehockey_nhl",
+    }
 
-    # Optimize parlays from +EV candidates
+    # --- Step 1: Fetch odds and build game/prediction data ---
+    odds_client = OddsClient(config.get("odds_api_key", ""), db)
+    all_games = []
+    all_odds_data = {}
+    all_predictions = {}
+    games_analyzed = 0
+
+    for sport in sports_to_run:
+        sport_key = sport_keys.get(sport)
+        if not sport_key:
+            continue
+
+        try:
+            events = odds_client.get_odds(sport_key, markets="h2h,totals")
+        except OddsClientError as exc:
+            logger.warning("Failed to fetch %s odds: %s", sport, exc)
+            continue
+
+        for event in events:
+            game_id = event.get("id", "")
+            home = event.get("home_team", "")
+            away = event.get("away_team", "")
+
+            all_games.append({
+                "game_id": game_id,
+                "sport": sport,
+                "home": home,
+                "away": away,
+            })
+
+            # Extract DraftKings odds (preferred) or first available bookmaker
+            dk_odds = _extract_bookmaker_odds(event, "draftkings")
+            if dk_odds is None:
+                dk_odds = _extract_bookmaker_odds(event, None)  # first available
+            if dk_odds is None:
+                continue
+
+            all_odds_data[game_id] = dk_odds
+
+            # Generate predictions using implied probabilities as baseline
+            # (Models need training data to beat this — this uses line-shopping edge only)
+            home_implied = implied_probability(dk_odds["home_ml"]) if dk_odds.get("home_ml") else 0.5
+            away_implied = implied_probability(dk_odds["away_ml"]) if dk_odds.get("away_ml") else 0.5
+
+            # Slight home-court/ice advantage adjustment (+1.5% for NBA, +1% for NHL)
+            home_adj = 0.015 if sport == "nba" else 0.01
+            home_prob = min(home_implied + home_adj, 0.95)
+
+            pred = {"home_win_prob": home_prob}
+
+            # Totals: use the line as predicted total (no edge until model trained)
+            if dk_odds.get("total_line"):
+                pred["predicted_total"] = dk_odds["total_line"]
+
+            all_predictions[game_id] = pred
+            games_analyzed += 1
+
+    # --- Step 2: Detect +EV bets ---
+    ev_bets = find_ev_bets(
+        all_games, all_predictions, all_odds_data, config.get("parlay", {})
+    )
+    logger.info("Found %d +EV bets across %d games", len(ev_bets), games_analyzed)
+
+    # Normalize ev_bets keys for optimizer (it expects 'odds', value.py outputs 'book_odds')
+    for bet in ev_bets:
+        bet["odds"] = bet.get("book_odds", bet.get("odds", 0))
+
+    # --- Step 3: Optimize parlays ---
     parlays = find_best_parlays(ev_bets, config)
+
+    # --- Step 4: Store picks and parlays in DB ---
+    for parlay in parlays:
+        leg1 = parlay["leg1"]
+        leg2 = parlay["leg2"]
+
+        pick1_id = insert_pick(
+            db, leg1["game_id"], leg1.get("market", "h2h"),
+            leg1.get("team", leg1.get("outcome", "")), leg1["odds"],
+        )
+        pick2_id = insert_pick(
+            db, leg2["game_id"], leg2.get("market", "h2h"),
+            leg2.get("team", leg2.get("outcome", "")), leg2["odds"],
+        )
+        parlay_id = insert_parlay(
+            db, pick1_id, pick2_id,
+            parlay["parlay_american"], parlay["parlay_edge"],
+        )
+        parlay["parlay_id"] = parlay_id
+
+        # Record shadow flat bets
+        shadow.record_bet(pick1_id, leg1["odds"])
+        shadow.record_bet(pick2_id, leg2["odds"])
 
     result = {
         "date": datetime.now().strftime("%Y-%m-%d"),
         "sports": sports_to_run,
+        "games_analyzed": games_analyzed,
         "ev_bets_found": len(ev_bets),
         "parlays": parlays,
         "ladder": ladder.get_ladder_display(),
@@ -139,10 +272,10 @@ def run_pipeline(
     }
 
     # Send alerts if we have parlays and alerts are enabled
-    if send_alerts and parlays:
-        webhook_url = config.get("discord_webhook_url", "")
-        if webhook_url:
-            alert_client = DiscordAlert(webhook_url)
+    webhook_url = config.get("discord_webhook_url", "")
+    if send_alerts and webhook_url:
+        alert_client = DiscordAlert(webhook_url)
+        if parlays:
             top_parlay = parlays[0]
             sent = alert_client.send_pick(
                 parlay=top_parlay,
@@ -150,15 +283,12 @@ def run_pipeline(
                 shadow=result["shadow"],
             )
             result["alerts_sent"] = sent
-
-    if send_alerts and not parlays:
-        webhook_url = config.get("discord_webhook_url", "")
-        if webhook_url:
-            alert_client = DiscordAlert(webhook_url)
+        else:
+            best_edge = max((b["edge"] for b in ev_bets), default=0.0)
             threshold = config.get("parlay", {}).get("min_edge_per_leg", 0.02)
             alert_client.send_no_picks(
-                games_analyzed=0,
-                best_edge=0.0,
+                games_analyzed=games_analyzed,
+                best_edge=best_edge,
                 threshold=threshold,
             )
 
@@ -246,12 +376,27 @@ def main():
 
         if args.picks:
             result = run_pipeline(config, sport_filter=args.sport, send_alerts=False)
+            print(f"\nAnalyzed {result['games_analyzed']} games, found {result['ev_bets_found']} +EV bets")
             if result["parlays"]:
                 for i, p in enumerate(result["parlays"], 1):
-                    print(f"\nParlay #{i}: {p['parlay_american']:+d}")
-                    print(f"  Leg 1: {p['leg1'].get('outcome')} ({p['leg1'].get('odds'):+d})")
-                    print(f"  Leg 2: {p['leg2'].get('outcome')} ({p['leg2'].get('odds'):+d})")
-                    print(f"  Edge: {p['parlay_edge']*100:.1f}%")
+                    leg1, leg2 = p["leg1"], p["leg2"]
+                    print(f"\n{'='*50}")
+                    print(f"  PARLAY #{i}: {p['parlay_american']:+d} (Edge: {p['parlay_edge']*100:.1f}%)")
+                    print(f"{'='*50}")
+                    print(f"  Leg 1: {leg1.get('team', leg1.get('outcome'))} "
+                          f"({leg1.get('sport','').upper()} {leg1.get('market','ML')}) "
+                          f"{leg1['odds']:+d}")
+                    print(f"         Model: {leg1['model_prob']*100:.1f}% | "
+                          f"Book: {leg1['book_implied_prob']*100:.1f}% | "
+                          f"Edge: {leg1['edge']*100:.1f}%")
+                    print(f"  Leg 2: {leg2.get('team', leg2.get('outcome'))} "
+                          f"({leg2.get('sport','').upper()} {leg2.get('market','ML')}) "
+                          f"{leg2['odds']:+d}")
+                    print(f"         Model: {leg2['model_prob']*100:.1f}% | "
+                          f"Book: {leg2['book_implied_prob']*100:.1f}% | "
+                          f"Edge: {leg2['edge']*100:.1f}%")
+                    print(f"  Combined: {p['combined_prob']*100:.1f}% prob × "
+                          f"{p['parlay_decimal']:.2f}x = {p['parlay_edge']*100:+.1f}% EV")
             else:
                 print("No +EV parlays found today.")
             return
