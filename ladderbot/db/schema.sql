@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS picks (
     market      TEXT NOT NULL,
     outcome     TEXT NOT NULL,
     odds_at_pick INTEGER NOT NULL,
+    total_line   REAL,                -- spread/total line (e.g. 5.5, 210.5) for totals/spreads picks
     closing_odds INTEGER,
     clv         REAL,
     result      TEXT,                 -- 'won', 'lost', 'push', NULL if pending

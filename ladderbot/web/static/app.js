@@ -210,11 +210,19 @@ function renderLeg(leg, num, parlayId) {
         </div>`;
     }
 
-    const description = leg.market === 'h2h'
-        ? `${leg.outcome} ML (${formatOdds(leg.odds_at_pick)})`
-        : leg.market === 'totals'
-        ? `${leg.home_team}/${leg.away_team} ${leg.outcome} (${formatOdds(leg.odds_at_pick)})`
-        : `${leg.outcome} (${formatOdds(leg.odds_at_pick)})`;
+    let description;
+    if (leg.market === 'h2h' || leg.market === 'moneyline') {
+        // Moneyline: "San Antonio Spurs ML (-225)"
+        description = `${leg.outcome} ML (${formatOdds(leg.odds_at_pick)})`;
+    } else if (leg.market === 'totals') {
+        // Totals: "Carolina Hurricanes vs St Louis Blues — OVER 5.5 (+120)"
+        const side = (leg.outcome || '').toUpperCase();
+        const matchup = `${leg.home_team} vs ${leg.away_team}`;
+        const line = leg.total_line != null ? ` ${leg.total_line}` : '';
+        description = `${matchup} — ${side}${line} (${formatOdds(leg.odds_at_pick)})`;
+    } else {
+        description = `${leg.outcome} (${formatOdds(leg.odds_at_pick)})`;
+    }
 
     const edgeDisplay = leg.edge != null ? `${(leg.edge * 100).toFixed(1)}%` : '--';
     const modelDisplay = leg.model_prob != null ? `${(leg.model_prob * 100).toFixed(1)}%` : '--';

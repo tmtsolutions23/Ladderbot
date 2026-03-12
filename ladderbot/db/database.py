@@ -135,14 +135,15 @@ def insert_pick(
     outcome: str,
     odds_at_pick: int,
     parlay_id: int | None = None,
+    total_line: float | None = None,
 ) -> int:
     """Insert a pick. Returns the pick_id."""
     cursor = conn.execute(
         """
-        INSERT INTO picks (parlay_id, game_id, market, outcome, odds_at_pick)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO picks (parlay_id, game_id, market, outcome, odds_at_pick, total_line)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (parlay_id, game_id, market, outcome, odds_at_pick),
+        (parlay_id, game_id, market, outcome, odds_at_pick, total_line),
     )
     conn.commit()
     return cursor.lastrowid

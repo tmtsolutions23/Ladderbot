@@ -86,12 +86,27 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
 
     path = Path(config_path)
     if not path.exists():
+        # If env vars are set, use defaults + env vars (Railway / cloud deploys)
+        if os.environ.get("ODDS_API_KEY"):
+            config = deepcopy(DEFAULT_CONFIG)
+            config["odds_api_key"] = os.environ["ODDS_API_KEY"]
+            if os.environ.get("DISCORD_WEBHOOK_URL"):
+                config["discord_webhook_url"] = os.environ["DISCORD_WEBHOOK_URL"]
+            return config
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
     with open(path) as f:
         user_config = yaml.safe_load(f) or {}
 
-    return _deep_merge(DEFAULT_CONFIG, user_config)
+    config = _deep_merge(DEFAULT_CONFIG, user_config)
+
+    # Environment variables override file values (for Railway / cloud deploys)
+    if os.environ.get("ODDS_API_KEY"):
+        config["odds_api_key"] = os.environ["ODDS_API_KEY"]
+    if os.environ.get("DISCORD_WEBHOOK_URL"):
+        config["discord_webhook_url"] = os.environ["DISCORD_WEBHOOK_URL"]
+
+    return config
 
 
 def validate_config(config: dict[str, Any]) -> None:

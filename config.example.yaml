@@ -1,29 +1,27 @@
-# API Keys
-odds_api_key: "your-key-here"
-
-# Discord
-discord_webhook_url: "https://discord.com/api/webhooks/..."
+# API Keys (or set ODDS_API_KEY and DISCORD_WEBHOOK_URL env vars)
+odds_api_key: your-key-here
+discord_webhook_url: https://discord.com/api/webhooks/...
 
 # Ladder Settings
 ladder:
   starting_amount: 10.00
   target_amount: 1000.00
-  max_attempts: 50          # stop after N failed attempts
+  max_attempts: 50
 
 # Parlay Settings
 parlay:
   min_legs: 2
   max_legs: 2
-  target_odds_min: 150      # +150 American
-  target_odds_max: 300      # +300 American
-  min_edge_per_leg: 0.02    # 2% minimum edge
-  min_edge_cold_start: 0.03 # 3% during first 20 games
+  target_odds_min: 150
+  target_odds_max: 300
+  min_edge_per_leg: 0.008
+  min_edge_cold_start: 0.01
 
 # Model Settings
 model:
-  rolling_window: 20        # games for rolling averages
-  use_xgboost: false        # set true to enable XGBoost upgrade
-  cold_start_games: 20      # games before full-weight current season
+  rolling_window: 20
+  use_xgboost: false
+  cold_start_games: 20
 
 # Sports
 sports:
@@ -31,6 +29,6 @@ sports:
   nhl: true
 
 # Schedule
-run_time: "11:00"           # daily run time (local)
-pre_game_refresh: 120       # minutes before game to re-check odds
-scheduler: "manual"         # "manual" (run yourself), "daemon" (run.py stays alive), or "cron" (prints crontab line)
+run_time: "11:00"
+pre_game_refresh: 120
+scheduler: "manual"

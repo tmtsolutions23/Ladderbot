@@ -5,6 +5,7 @@ checking ladder status, backtesting, and launching the web dashboard.
 """
 import argparse
 import logging
+import os
 import sys
 from datetime import datetime
 
@@ -259,13 +260,20 @@ def run_pipeline(
             logger.debug("Skipping duplicate parlay: %s", key)
             continue
 
+        # For moneyline, store team name as outcome (user needs to know which team).
+        # For totals, store "over"/"under".
+        outcome1 = leg1.get("team", leg1.get("outcome", "")) if leg1.get("market") == "moneyline" else leg1.get("outcome", "")
+        outcome2 = leg2.get("team", leg2.get("outcome", "")) if leg2.get("market") == "moneyline" else leg2.get("outcome", "")
+
         pick1_id = insert_pick(
             db, leg1["game_id"], leg1.get("market", "h2h"),
-            leg1.get("team", leg1.get("outcome", "")), leg1["odds"],
+            outcome1, leg1["odds"],
+            total_line=leg1.get("total_line"),
         )
         pick2_id = insert_pick(
             db, leg2["game_id"], leg2.get("market", "h2h"),
-            leg2.get("team", leg2.get("outcome", "")), leg2["odds"],
+            outcome2, leg2["odds"],
+            total_line=leg2.get("total_line"),
         )
         parlay_id = insert_parlay(
             db, pick1_id, pick2_id,
@@ -386,9 +394,10 @@ def main():
             logger.warning("Pipeline scan failed: %s — launching dashboard with existing data", exc)
 
         app = create_app(config)
-        print(f"\nStarting LadderBot web dashboard on port {args.port}...")
-        print(f"Open http://localhost:{args.port} in your browser")
-        uvicorn.run(app, host="0.0.0.0", port=args.port)
+        port = int(os.environ.get("PORT", args.port))
+        print(f"\nStarting LadderBot web dashboard on port {port}...")
+        print(f"Open http://localhost:{port} in your browser")
+        uvicorn.run(app, host="0.0.0.0", port=port)
         return
 
     if args.picks or args.dashboard or args.backtest:
