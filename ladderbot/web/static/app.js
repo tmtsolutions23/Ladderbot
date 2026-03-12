@@ -168,8 +168,15 @@ async function loadPicks() {
 }
 
 function renderParlayCard(parlay, rank) {
-    const statusClass = parlay.placed ? 'card-placed' : parlay.skipped ? 'card-skipped' : '';
-    const statusBadge = parlay.placed
+    const statusClass = parlay.result === 'won' ? 'card-won'
+        : parlay.result === 'lost' ? 'card-lost'
+        : parlay.placed ? 'card-placed'
+        : parlay.skipped ? 'card-skipped' : '';
+    const statusBadge = parlay.result === 'won'
+        ? '<span class="text-xs bg-green-900 text-green-400 px-2 py-0.5 rounded-full">WON</span>'
+        : parlay.result === 'lost'
+        ? '<span class="text-xs bg-red-900 text-red-400 px-2 py-0.5 rounded-full">LOST</span>'
+        : parlay.placed
         ? '<span class="text-xs bg-green-900 text-green-400 px-2 py-0.5 rounded-full">PLACED</span>'
         : parlay.skipped
         ? '<span class="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full">SKIPPED</span>'
@@ -217,7 +224,7 @@ function renderParlayCard(parlay, rank) {
         </div>
 
         <!-- Action Buttons -->
-        ${!parlay.placed && !parlay.skipped ? `
+        ${!parlay.placed && !parlay.skipped && !parlay.result ? `
         <div class="mt-4 flex gap-3">
             <button onclick="placePick(${parlay.parlay_id})"
                 class="flex-1 bg-green-700 hover:bg-green-600 text-white text-sm font-medium py-2 px-4 rounded transition-colors">
@@ -227,6 +234,23 @@ function renderParlayCard(parlay, rank) {
                 class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium py-2 px-4 rounded transition-colors">
                 SKIP
             </button>
+        </div>` : ''}
+
+        ${parlay.placed && !parlay.result ? `
+        <div class="mt-4 flex gap-3">
+            <button onclick="recordResult(${parlay.parlay_id}, 'won')"
+                class="flex-1 bg-green-700 hover:bg-green-600 text-white text-sm font-bold py-2 px-4 rounded transition-colors">
+                WON
+            </button>
+            <button onclick="recordResult(${parlay.parlay_id}, 'lost')"
+                class="flex-1 bg-red-700 hover:bg-red-600 text-white text-sm font-bold py-2 px-4 rounded transition-colors">
+                LOST
+            </button>
+        </div>` : ''}
+
+        ${parlay.result === 'won' && parlay.payout ? `
+        <div class="mt-4 bg-green-900/30 border border-green-800 rounded px-4 py-2 text-sm text-green-400 font-medium">
+            Payout: $${parlay.payout.toFixed(2)}
         </div>` : ''}
     </div>`;
 }
@@ -371,6 +395,26 @@ async function skipPick(parlayId) {
         loadPicks();
     } catch (e) {
         alert(`Error skipping pick: ${e.message}`);
+    }
+}
+
+async function recordResult(parlayId, result) {
+    const label = result === 'won' ? 'WON' : 'LOST';
+    if (!confirm(`Mark this parlay as ${label}?`)) return;
+
+    try {
+        const resp = await apiFetch(`/api/picks/${parlayId}/result`, {
+            method: 'POST',
+            body: JSON.stringify({ result }),
+        });
+
+        if (resp.ladder?.complete) {
+            alert(`LADDER COMPLETE! Payout: $${resp.payout.toFixed(2)}`);
+        }
+
+        loadPicks();
+    } catch (e) {
+        alert(`Error recording result: ${e.message}`);
     }
 }
 

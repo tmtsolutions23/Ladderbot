@@ -47,6 +47,10 @@ class SkipRequest(BaseModel):
     reason: str = "user_choice"
 
 
+class ResultRequest(BaseModel):
+    result: str  # "won" or "lost"
+
+
 # -- Helpers -------------------------------------------------------------------
 
 
@@ -401,5 +405,95 @@ async def skip_pick(parlay_id: int, body: SkipRequest, request: Request):
             "status": "skipped",
             "reason": body.reason,
         }
+    finally:
+        conn.close()
+
+
+@router.post("/{parlay_id}/result")
+async def record_result(parlay_id: int, body: ResultRequest, request: Request):
+    """Record a parlay result (won/lost) and update ladder + shadow portfolio."""
+    if body.result not in ("won", "lost"):
+        raise HTTPException(status_code=400, detail="Result must be 'won' or 'lost'")
+
+    conn = _get_conn(request)
+    config = _get_config(request)
+    try:
+        parlay = conn.execute(
+            "SELECT * FROM parlays WHERE parlay_id = ?", (parlay_id,)
+        ).fetchone()
+
+        if not parlay:
+            raise HTTPException(status_code=404, detail="Parlay not found")
+
+        p = _row_to_dict(parlay)
+
+        if p.get("result"):
+            raise HTTPException(status_code=400, detail=f"Result already recorded: {p['result']}")
+        if not p.get("placed"):
+            raise HTTPException(status_code=400, detail="Cannot record result for unplaced parlay")
+
+        # Calculate payout
+        stake = p.get("actual_stake", 0) or 0
+        odds = p.get("fd_parlay_odds") or p["combined_odds"]
+        payout = None
+        if body.result == "won":
+            decimal_odds = american_to_decimal(odds)
+            payout = round(stake * decimal_odds, 2)
+
+        # Update parlay result
+        conn.execute(
+            "UPDATE parlays SET result = ?, payout = ? WHERE parlay_id = ?",
+            (body.result, payout, parlay_id),
+        )
+
+        # Update individual pick results (both legs same result for a parlay)
+        pick_result = body.result
+        for pick_id_col in ("leg1_pick_id", "leg2_pick_id"):
+            pick_id = p.get(pick_id_col)
+            if pick_id:
+                conn.execute(
+                    "UPDATE picks SET result = ? WHERE pick_id = ?",
+                    (pick_result, pick_id),
+                )
+
+        # Update shadow flat bets
+        from ladderbot.parlay.ladder import ShadowPortfolio
+        shadow = ShadowPortfolio(conn)
+        for pick_id_col in ("leg1_pick_id", "leg2_pick_id"):
+            pick_id = p.get(pick_id_col)
+            if pick_id:
+                try:
+                    shadow.record_result(pick_id, pick_result)
+                except ValueError:
+                    pass  # No flat bet recorded for this pick
+
+        # Update ladder state
+        from ladderbot.parlay.ladder import LadderTracker
+        ladder = LadderTracker(conn, config)
+        ladder_result = None
+
+        # Auto-start ladder if idle (first bet placed)
+        if ladder.status == ladder.IDLE:
+            ladder.start_new_attempt()
+            ladder.place_bet(parlay_id)
+
+        if ladder.status == ladder.ACTIVE:
+            if body.result == "won" and payout:
+                ladder_result = ladder.record_win(payout)
+            elif body.result == "lost":
+                ladder_result = ladder.record_loss()
+
+        conn.commit()
+
+        response = {
+            "parlay_id": parlay_id,
+            "result": body.result,
+            "payout": payout,
+            "stake": stake,
+        }
+        if ladder_result:
+            response["ladder"] = ladder_result
+
+        return response
     finally:
         conn.close()

@@ -30,6 +30,28 @@
     border-radius: inherit;
 }
 
+/* Won card — green glow */
+.card-won {
+    border-color: #10b981 !important;
+}
+.card-won::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(16, 185, 129, 0.05);
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+/* Lost card — red border, dimmed */
+.card-lost {
+    border-color: #ef4444 !important;
+    opacity: 0.75;
+}
+
 /* Skipped card — gray border */
 .card-skipped {
     border-color: #6b7280 !important;
