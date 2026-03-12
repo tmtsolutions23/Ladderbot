@@ -42,7 +42,7 @@ class LadderTracker:
             return self.IDLE
         if row["result"] == "lost":
             return self.IDLE
-        if row["bankroll"] >= self._target_amount:
+        if row["result"] == "won" and row["bankroll"] >= self._target_amount:
             return self.COMPLETE
         if row["result"] == "won" or row["result"] is None:
             return self.ACTIVE

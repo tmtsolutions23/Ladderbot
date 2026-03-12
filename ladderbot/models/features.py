@@ -258,12 +258,15 @@ def build_nba_features(
     away_rest = _compute_rest_days(game_date, away_recent)
 
     # Travel distance (approximation: distance from last game to this arena)
-    home_coord = ARENA_COORDS.get(home, (0.0, 0.0))
-    away_coord = ARENA_COORDS.get(away, (0.0, 0.0))
+    home_coord = ARENA_COORDS.get(home)
+    away_coord = ARENA_COORDS.get(away)
 
     # Home team travels 0 (playing at home); away team travels to home arena
-    away_travel = _haversine(away_coord[0], away_coord[1],
-                             home_coord[0], home_coord[1])
+    if home_coord is not None and away_coord is not None:
+        away_travel = _haversine(away_coord[0], away_coord[1],
+                                 home_coord[0], home_coord[1])
+    else:
+        away_travel = 0.0  # Unknown team — use 0 rather than bogus distance
 
     # Injury impact
     home_injury = injury_client.get_injury_impact(home)
@@ -339,10 +342,13 @@ def build_nhl_features(
     away_rest = _compute_rest_days(game_date, away_recent)
 
     # Travel distance for B2B composite
-    home_coord = ARENA_COORDS.get(home, ARENA_COORDS.get(f"{home}_NHL", (0.0, 0.0)))
-    away_coord = ARENA_COORDS.get(away, ARENA_COORDS.get(f"{away}_NHL", (0.0, 0.0)))
-    away_travel = _haversine(away_coord[0], away_coord[1],
-                             home_coord[0], home_coord[1])
+    home_coord = ARENA_COORDS.get(home) or ARENA_COORDS.get(f"{home}_NHL")
+    away_coord = ARENA_COORDS.get(away) or ARENA_COORDS.get(f"{away}_NHL")
+    if home_coord is not None and away_coord is not None:
+        away_travel = _haversine(away_coord[0], away_coord[1],
+                                 home_coord[0], home_coord[1])
+    else:
+        away_travel = 0.0
 
     # B2B travel composite: penalize B2B more if traveled far
     home_b2b = 1.0 if home_rest == 0 else 0.0

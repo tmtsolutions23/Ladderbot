@@ -125,8 +125,10 @@ def find_ev_bets(
                 std_dev = 1.5
 
             diff = predicted_total - total_line
-            # Approximate P(over) using logistic function
-            over_prob = 1.0 / (1.0 + _exp_safe(-diff / (std_dev * 0.5)))
+            # Approximate P(over) using logistic CDF
+            # Scale = std_dev * pi / sqrt(3) ≈ std_dev * 1.814 for normal approx
+            # Simplified: use std_dev directly as scale parameter
+            over_prob = 1.0 / (1.0 + _exp_safe(-diff / std_dev))
             under_prob = 1.0 - over_prob
 
             if over_odds is not None:

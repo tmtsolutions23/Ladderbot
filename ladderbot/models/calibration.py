@@ -135,8 +135,9 @@ class ModelCalibration:
         if len(predictions) != len(actuals):
             raise ValueError("Length mismatch between predictions and actuals")
 
-        # Initialize parameters
-        a = 0.0
+        # Initialize: a=1.0 (identity transform) so gradient reflects actual
+        # miscalibration. Starting at a=0.0 collapses all probs to 0.5.
+        a = 1.0
         b = 0.0
         n = len(predictions)
         eps = 1e-12

@@ -48,9 +48,9 @@ class DixonColesTotals:
         if x == 0 and y == 0:
             return 1.0 - lam * mu * rho
         elif x == 0 and y == 1:
-            return 1.0 + lam * rho
-        elif x == 1 and y == 0:
             return 1.0 + mu * rho
+        elif x == 1 and y == 0:
+            return 1.0 + lam * rho
         elif x == 1 and y == 1:
             return 1.0 - rho
         else:
@@ -133,6 +133,11 @@ class DixonColesTotals:
             bounds=bounds,
         )
 
+        if not result.success:
+            raise RuntimeError(
+                f"Dixon-Coles MLE failed to converge: {result.message}"
+            )
+
         self._home_attack = math.exp(result.x[0])
         self._away_attack = math.exp(result.x[1])
         self._rho = result.x[2]
@@ -193,6 +198,8 @@ class DixonColesTotals:
 
         # Compute bivariate probability matrix
         under_prob = 0.0
+        over_prob = 0.0
+        push_prob = 0.0
         total_prob = 0.0
 
         for h in range(max_goals + 1):
@@ -206,11 +213,12 @@ class DixonColesTotals:
                 total_goals = h + a
                 if total_goals < total_line:
                     under_prob += prob
+                elif total_goals > total_line:
+                    over_prob += prob
+                else:
+                    push_prob += prob
 
-        # Normalize
-        over_prob = total_prob - under_prob
-
-        # Normalize to sum to 1
+        # Normalize over+under only (exclude push probability)
         sum_probs = over_prob + under_prob
         if sum_probs > 0:
             over_prob /= sum_probs

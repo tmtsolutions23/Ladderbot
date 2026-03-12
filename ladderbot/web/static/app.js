@@ -231,7 +231,7 @@ function renderLeg(leg, num, parlayId) {
             </div>
             <div class="text-right">
                 <span class="text-sm font-semibold ${parseFloat(edgeDisplay) > 0 ? 'text-green-400' : 'text-gray-400'}">
-                    Edge: +${edgeDisplay}
+                    Edge: ${leg.edge >= 0 ? '+' : ''}${edgeDisplay}
                 </span>
             </div>
         </div>

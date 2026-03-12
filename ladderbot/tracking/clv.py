@@ -5,8 +5,8 @@ consistently bet lines that move in your favor before close, you have
 real edge.
 
 CLV = closing_implied_prob - pick_implied_prob
-  Positive CLV = you got better odds than closing (good)
-  Negative CLV = you got worse odds than closing (bad)
+  Positive CLV = closing line moved toward your bet (good — you beat the close)
+  Negative CLV = closing line moved away from your bet (bad)
 """
 import sqlite3
 from typing import Optional
@@ -78,7 +78,7 @@ class CLVTracker:
         """Compute CLV for a single pick.
 
         CLV = closing_implied_prob - pick_implied_prob
-        Positive = you got better odds than closing (good).
+        Positive = closing line moved toward your bet (good).
 
         Args:
             pick_id: ID of the pick.

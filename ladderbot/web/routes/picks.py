@@ -298,13 +298,10 @@ async def place_pick(parlay_id: int, body: PlaceRequest, request: Request):
         if p.get("skipped"):
             raise HTTPException(status_code=400, detail="Parlay already skipped")
 
-        # Calculate FD edge if we have the verified odds
-        fd_leg1 = p.get("fd_leg1_odds") or body.actual_odds
-        fd_leg2 = p.get("fd_leg2_odds") or body.actual_odds
-        fd_parlay = p.get("fd_parlay_odds") or body.actual_odds
+        # Use verified FD odds if available, otherwise keep what's stored
         fd_edge = p.get("fd_edge") or p["combined_edge"]
 
-        # Update parlay as placed
+        # Update parlay as placed — only set fd_parlay_odds if not already set from /verify
         conn.execute(
             """
             UPDATE parlays SET

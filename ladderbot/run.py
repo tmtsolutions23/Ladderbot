@@ -258,8 +258,11 @@ def main():
 
     # Default: run the full pipeline
     try:
-        from ladderbot.config import get_config
-        config = get_config(config_path=args.config)
+        from ladderbot.config import load_config
+        config = load_config(args.config) if args.config else load_config()
+    except FileNotFoundError:
+        from ladderbot.config import DEFAULT_CONFIG
+        config = DEFAULT_CONFIG
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)

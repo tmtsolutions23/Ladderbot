@@ -158,7 +158,7 @@ def insert_parlay(
     combined_odds: int,
     combined_edge: float,
 ) -> int:
-    """Insert a parlay. Returns the parlay_id."""
+    """Insert a parlay and link picks back to it. Returns the parlay_id."""
     cursor = conn.execute(
         """
         INSERT INTO parlays (leg1_pick_id, leg2_pick_id, combined_odds, combined_edge)
@@ -166,8 +166,15 @@ def insert_parlay(
         """,
         (leg1_pick_id, leg2_pick_id, combined_odds, combined_edge),
     )
+    parlay_id = cursor.lastrowid
+
+    # Link picks back to the parlay so joins on picks.parlay_id work
+    conn.execute(
+        "UPDATE picks SET parlay_id = ? WHERE pick_id IN (?, ?)",
+        (parlay_id, leg1_pick_id, leg2_pick_id),
+    )
     conn.commit()
-    return cursor.lastrowid
+    return parlay_id
 
 
 def update_parlay_placed(
@@ -263,12 +270,13 @@ def get_ladder_state(conn: sqlite3.Connection) -> Optional[sqlite3.Row]:
 def get_active_ladder(conn: sqlite3.Connection) -> Optional[sqlite3.Row]:
     """Get the latest ladder state that has no terminal result.
 
-    Returns the most recent state row for the latest attempt. Returns None
-    if no ladder state exists.
+    Returns the most recent pending (result IS NULL) state row. Returns None
+    if no active ladder exists.
     """
     row = conn.execute(
         """
         SELECT * FROM ladder_state
+        WHERE result IS NULL
         ORDER BY attempt_id DESC, step DESC
         LIMIT 1
         """

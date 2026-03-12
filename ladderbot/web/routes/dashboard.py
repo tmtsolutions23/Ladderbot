@@ -84,7 +84,6 @@ async def get_performance(request: Request):
         ladder_stats = conn.execute(
             """
             SELECT
-                COUNT(DISTINCT attempt_id) as attempts,
                 COALESCE(SUM(CASE WHEN placed = 1 THEN actual_stake ELSE 0 END), 0) as total_wagered,
                 COALESCE(SUM(CASE WHEN placed = 1 AND result = 'won' THEN payout ELSE 0 END), 0) as total_returned
             FROM parlays
@@ -116,7 +115,7 @@ async def get_performance(request: Request):
             FROM model_predictions mp
             JOIN picks pk ON mp.game_id = pk.game_id AND mp.market = pk.market AND mp.outcome = pk.outcome
             JOIN games g ON mp.game_id = g.game_id
-            WHERE pk.result IS NOT NULL
+            WHERE pk.result IN ('won', 'lost')
             GROUP BY g.sport
             """
         ).fetchall()

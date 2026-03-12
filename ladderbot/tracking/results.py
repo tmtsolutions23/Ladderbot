@@ -140,8 +140,8 @@ class ResultsResolver:
             elif outcome == away_team:
                 return away_score > home_score
             else:
-                # Unknown team in outcome
-                return False
+                # Unknown team in outcome — don't silently mark as loss
+                return None
 
         elif market == "totals":
             # Totals: outcome is "Over" or "Under"
