@@ -377,8 +377,16 @@ def main():
             from ladderbot.config import DEFAULT_CONFIG
             config = DEFAULT_CONFIG
 
+        # Run pipeline first to fetch fresh picks
+        print("Fetching odds and scanning for picks...")
+        try:
+            result = run_pipeline(config, sport_filter=args.sport, send_alerts=False)
+            print(f"Found {result['ev_bets_found']} +EV bets, {len(result['parlays'])} parlays")
+        except Exception as exc:
+            logger.warning("Pipeline scan failed: %s — launching dashboard with existing data", exc)
+
         app = create_app(config)
-        print(f"Starting LadderBot web dashboard on port {args.port}...")
+        print(f"\nStarting LadderBot web dashboard on port {args.port}...")
         print(f"Open http://localhost:{args.port} in your browser")
         uvicorn.run(app, host="0.0.0.0", port=args.port)
         return
