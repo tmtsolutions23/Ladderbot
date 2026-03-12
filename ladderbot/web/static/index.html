@@ -48,10 +48,16 @@
         <div id="tab-picks" class="tab-content hidden">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-lg font-semibold text-white" id="picks-date-heading">TODAY'S PICKS</h2>
-                <button onclick="loadPicks()" class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1.5 rounded transition-colors">
-                    Refresh
-                </button>
+                <div class="flex gap-2">
+                    <button id="scan-btn" onclick="scanForPicks()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded font-medium transition-colors">
+                        Scan Now
+                    </button>
+                    <button onclick="loadPicks()" class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1.5 rounded transition-colors">
+                        Refresh
+                    </button>
+                </div>
             </div>
+            <div id="scan-status" class="hidden mb-4 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm"></div>
             <div id="picks-container" class="space-y-4">
                 <div class="text-gray-500 text-sm">Loading picks...</div>
             </div>

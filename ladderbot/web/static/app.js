@@ -104,6 +104,34 @@ function formatPct(value) {
 // Picks View
 // ============================================================================
 
+async function scanForPicks() {
+    const btn = document.getElementById('scan-btn');
+    const status = document.getElementById('scan-status');
+
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    btn.classList.add('opacity-50');
+    status.classList.remove('hidden');
+    status.innerHTML = '<span class="text-yellow-400">Fetching odds and scanning for +EV picks...</span>';
+
+    try {
+        const result = await apiFetch('/api/picks/scan', { method: 'POST' });
+        status.innerHTML =
+            `<span class="text-green-400">Scan complete:</span> ` +
+            `${result.games_analyzed} games analyzed, ` +
+            `${result.ev_bets_found} +EV bets, ` +
+            `${result.parlays_found} parlays built`;
+        await loadPicks();
+    } catch (err) {
+        status.innerHTML = `<span class="text-red-400">Scan failed:</span> ${err.message}`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Scan Now';
+        btn.classList.remove('opacity-50');
+        setTimeout(() => status.classList.add('hidden'), 10000);
+    }
+}
+
 async function loadPicks() {
     const container = document.getElementById('picks-container');
     try {

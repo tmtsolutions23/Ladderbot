@@ -6,11 +6,15 @@ Endpoints:
     POST /api/picks/{id}/place    — Mark parlay as placed
     POST /api/picks/{id}/skip     — Mark parlay as skipped
 """
+import asyncio
+import logging
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+
+logger = logging.getLogger("ladderbot")
 
 from ladderbot.db.database import get_db
 from ladderbot.utils.odds import (
@@ -164,6 +168,29 @@ async def get_today_picks(request: Request):
         }
     finally:
         conn.close()
+
+
+@router.post("/scan")
+async def scan_for_picks(request: Request):
+    """Run the pipeline on demand — fetch odds, detect edges, build parlays."""
+    config = _get_config(request)
+
+    from ladderbot.run import run_pipeline
+
+    try:
+        result = await asyncio.to_thread(
+            run_pipeline, config, sport_filter=None, send_alerts=False
+        )
+    except Exception as exc:
+        logger.exception("Pipeline scan failed")
+        raise HTTPException(status_code=500, detail=f"Scan failed: {exc}")
+
+    return {
+        "status": "ok",
+        "games_analyzed": result["games_analyzed"],
+        "ev_bets_found": result["ev_bets_found"],
+        "parlays_found": len(result["parlays"]),
+    }
 
 
 @router.post("/{parlay_id}/verify")
